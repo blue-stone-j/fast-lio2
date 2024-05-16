@@ -108,7 +108,7 @@ void Preprocess::avia_handler(const livox_ros_driver::CustomMsg::ConstPtr &msg)
         pl_full[i].y         = msg->points[i].y; // 点云y轴坐标
         pl_full[i].z         = msg->points[i].z; // 点云z轴坐标
         pl_full[i].intensity = msg->points[i].reflectivity; // 点云强度
-        pl_full[i].curvature = msg->points[i].offset_time / float(1000000); // 使用曲率作为每个激光点的时间
+        pl_full[i].curvature = msg->points[i].offset_time / float(1000000); // use curvature as time of each laser points
 
         bool is_new = false;
         // 只有当当前点和上一点的间距足够大（>1e-7），才将当前点认为是有用的点，分别加入到对应line的pl_buff队列中
@@ -218,7 +218,7 @@ void Preprocess::oust64_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       added_pt.y         = pl_orig.points[i].y;
       added_pt.z         = pl_orig.points[i].z;
       added_pt.intensity = pl_orig.points[i].intensity;
-      added_pt.normal_x  = 0;
+      added_pt.normal_x  = 0; // Normal结构体表示给定点所在样本曲面上的法线方向,以及对应曲率的测量值
       added_pt.normal_y  = 0;
       added_pt.normal_z  = 0;
       double yaw_angle   = atan2(added_pt.y, added_pt.x) * 57.3;
@@ -321,7 +321,7 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
   bool is_first[MAX_LINE_NUM];
   double yaw_fp[MAX_LINE_NUM]   = {0}; // yaw of first scan point
-  double omega_l                = 3.61; // scan angular velocity
+  double omega_l                = 3.61; // scan angular velocity(degree/ms)(10hz)
   float yaw_last[MAX_LINE_NUM]  = {0.0}; // yaw of last scan point
   float time_last[MAX_LINE_NUM] = {0.0}; // last offset time
 
@@ -362,7 +362,9 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       added_pt.normal_z = 0;
       int layer         = pl_orig.points[i].ring;
       if (layer >= N_SCANS)
+      {
         continue;
+      }
       added_pt.x         = pl_orig.points[i].x;
       added_pt.y         = pl_orig.points[i].y;
       added_pt.z         = pl_orig.points[i].z;
@@ -378,11 +380,11 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
           yaw_fp[layer]      = yaw_angle;
           is_first[layer]    = false;
           added_pt.curvature = 0.0;
-          yaw_last[layer]    = yaw_angle; // 对每一条线最后一个点的时间赋值
+          yaw_last[layer]    = yaw_angle; // 对每一条线最后一个点的航向角赋值
           time_last[layer]   = added_pt.curvature; // 对每一条线最后一个点的时间赋值
           continue;
         }
-        // 对每个点计算时间
+        // 根据角度计算每个点的时间
         if (yaw_angle <= yaw_fp[layer])
         {
           added_pt.curvature = (yaw_fp[layer] - yaw_angle) / omega_l;
@@ -402,7 +404,7 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       }
 
       pl_buff[layer].points.push_back(added_pt);
-    }
+    } // endfor:
 
     for (int j = 0; j < N_SCANS; j++)
     {
@@ -426,7 +428,7 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       }
       types[linesize].range = sqrt(pl[linesize].x * pl[linesize].x + pl[linesize].y * pl[linesize].y);
       give_feature(pl, types);
-    }
+    } // endfor:
   }
   else
   {
@@ -521,8 +523,8 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
   // group_size默认等于8
   plsize2 = (plsize > group_size) ? (plsize - group_size) : 0; // 判断当前点后面是否还有8个点 够的话就逐渐减少
 
-  Eigen::Vector3d curr_direct(Eigen::Vector3d::Zero( )); //??? 当前平面的法向量
-  Eigen::Vector3d last_direct(Eigen::Vector3d::Zero( )); //??? 上一个平面的法向量
+  Eigen::Vector3d curr_direct(Eigen::Vector3d::Zero( )); // 当前平面的方向向量
+  Eigen::Vector3d last_direct(Eigen::Vector3d::Zero( )); // 上一平面的方向向量
 
   uint i_nex      = 0, i2; // i2为当前点的下一个点
   uint last_i     = 0; // last_i为上一个点的保存的索引
@@ -562,15 +564,14 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
       }
       // if(last_state==1 && fabs(last_direct.sum())>0.5)
 
-      // 最开始last_state=0直接跳过
-      // 之后last_state=1
+      // 最开始last_state=0直接跳过；之后last_state=1
       // 如果之前状态是平面则判断当前点是处于两平面边缘的点还是较为平坦的平面的点
       if (last_state == 1 && last_direct.norm( ) > 0.1)
       {
         double mod = last_direct.transpose( ) * curr_direct;
         if (mod > -0.707 && mod < 0.707)
         {
-          // 修改ftype，两个面法向量夹角在45度和135度之间 认为是两平面边缘上的点
+          // 修改ftype，两个方向向量夹角在45度和135度之间 认为是两平面边缘上的点
           types[i].ftype = Edge_Plane;
         }
         else
@@ -650,7 +651,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
     {
       continue;
     }
-    // 该点与前后点的距离不能挨的太近
+    // 该点与前后点的距离不能太近
     if (types[i - 1].dista < 1e-16 || types[i].dista < 1e-16)
     {
       continue;
@@ -761,7 +762,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
     {
       continue;
     }
-    // 前面和当前 当前和之后的点与点之间距离都不能太近
+    // 前面和当前、当前和之后的点与点之间距离都不能太近
     if (types[i - 1].dista < 1e-8 || types[i].dista < 1e-8)
     {
       continue;
@@ -808,8 +809,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
       {
         last_surface = j;
       }
-      // 通常连着好几个都是面点
-      // 必须在采样间隔上的平面点才使用（这里的是无差别滤波 从每次新找到面点开始每几个点才取一个）
+      // 通常连着好几个都是面点，因此只有在采样间隔上的平面点才使用（这里的是无差别滤波 从每次新找到面点开始每几个点才取一个）
       if (j == uint(last_surface + point_filter_num - 1))
       {
         PointType ap;
@@ -852,7 +852,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
       }
       last_surface = -1;
     }
-  } // endfor:
+  } // endfor:存储平面点
 }
 
 // 发布topic指令，该函数暂时没用到
@@ -883,7 +883,7 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
   {
     if (types[i_nex].range < blind)
     {
-      curr_direct.setZero( ); // 距离雷达原点太小了将法向量设置为零向量
+      curr_direct.setZero( ); // 距离雷达原点太小了，将方向向量设置为零向量
       return 2;
     }
     disarr.push_back(types[i_nex].dista); // 存储当前点与后一个点的距离
@@ -899,7 +899,7 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
 
     if (types[i_nex].range < blind)
     {
-      curr_direct.setZero( ); // 距离雷达原点太近了将法向量设置为零向量
+      curr_direct.setZero( ); // 距离雷达原点太近了将方向向量设置为零向量
       return 2;
     }
     // 最后的i_nex点到i_cur点的距离
@@ -923,7 +923,7 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
     {
       break;
     }
-    // 假设i_cur点为A j点为B i_nex点为C
+    // 假设i_cur点为A，j点为B，i_nex点为C
     // 向量AB
     v1[0] = pl[j].x - pl[i_cur].x;
     v1[1] = pl[j].y - pl[i_cur].y;
@@ -940,14 +940,12 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
       leng_wid = lw; // 寻找最大面积的平方(也就是寻找距离AC最远的B)
     }
   }
-  //??? if these points are on one plane, height must be small
+  //??? note that input points lie on one scan, if these points are on one plane, height must be small
 
-  //|AC|*|AC|/(|AC|*|AC|*h*h)<225
-  // 也就是h>1/15 B点到AC的距离要大于0.06667m
-  // 太近了不好拟合一个平面
+  //|AC|*|AC|/(|AC|*|AC|*h*h)<225, 也就是h>1/15 B点到AC的距离要大于0.06667m, 太近了不好拟合一个平面
   if ((two_dis * two_dis / leng_wid) < p2l_ratio)
   {
-    curr_direct.setZero( ); // 太近了法向量直接设置为0
+    curr_direct.setZero( ); // 太近了，方向向量直接设置为0
     return 0;
   }
 
@@ -995,10 +993,11 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
     }
   }
 
-  curr_direct << vx, vy, vz; //???
-  curr_direct.normalize( ); // 法向量归一化
+  curr_direct << vx, vy, vz; // 保存当前的方向向量
+  curr_direct.normalize( ); // 方向向量归一化
   return 1;
 }
+
 // 边缘判断
 bool Preprocess::edge_jump_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i, Surround nor_dir)
 {

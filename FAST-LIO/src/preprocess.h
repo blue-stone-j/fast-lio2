@@ -156,7 +156,7 @@ class Preprocess
   void give_feature(PointCloudXYZI &pl, vector<orgtype> &types);
   //???
   void pub_func(PointCloudXYZI &pl, const ros::Time &ct);
-  //???
+  // judge wether this is a plane. curr_direct is direction that plane expands
   int  plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i, uint &i_nex, Eigen::Vector3d &curr_direct);
   //???
   bool small_plane(const PointCloudXYZI &pl, vector<orgtype> &types, uint i_cur, uint &i_nex, Eigen::Vector3d &curr_direct);  // 没有用到

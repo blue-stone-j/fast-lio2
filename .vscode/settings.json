@@ -1,0 +1,8 @@
+{
+  "files.associations": {
+    "*.lua": "lua",
+    "core": "cpp",
+    "numericaldiff": "cpp",
+    "*.ipp": "cpp"
+  }
+}

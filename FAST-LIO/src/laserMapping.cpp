@@ -164,7 +164,7 @@ geometry_msgs::PoseStamped msg_body_pose; // 位姿
 shared_ptr<Preprocess> p_pre(new Preprocess( )); // 定义指向激光雷达数据的预处理类Preprocess的智能指针
 shared_ptr<ImuProcess> p_imu(new ImuProcess( )); // 定义指向IMU数据预处理类ImuProcess的智能指针
 
-// 按下ctrl+c后唤醒所有线程
+// 后唤醒所有线程(触发信号定义为中断，例如ctrl+c)
 void SigHandle(int sig)
 {
   flg_exit = true;
@@ -270,7 +270,7 @@ void lasermap_fov_segment( )
   pointBodyToWorld(XAxisPoint_body, XAxisPoint_world);
   // global系下lidar位置
   V3D pos_LiD = pos_lid;
-  // 初始化局部地图包围盒角点，以为w系下lidar位置为中心,得到长宽高200*200*200的局部地图
+  // 若未初始化，初始化局部地图包围盒角点，以为w系下lidar位置为中心,得到长宽高200*200*200的局部地图
   if (!Localmap_Initialized)
   { // 系统起始需要初始化局部地图的大小和位置
     for (int i = 0; i < 3; i++)
@@ -410,8 +410,9 @@ void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in)
   // 将IMU和激光雷达点云的时间戳对齐
   if (abs(timediff_lidar_wrt_imu) > 0.1 && time_sync_en) // 时间同步校准
   {
-    msg->header.stamp =
-        ros::Time( ).fromSec(timediff_lidar_wrt_imu + msg_in->header.stamp.toSec( )); // 将IMU时间戳对齐到激光雷达时间戳
+    //??? 直接就强行改了时间戳
+    // 将IMU时间戳对齐到激光雷达时间戳
+    msg->header.stamp = ros::Time( ).fromSec(timediff_lidar_wrt_imu + msg_in->header.stamp.toSec( ));
   }
 
   double timestamp = msg->header.stamp.toSec( ); // IMU时间戳
@@ -430,7 +431,7 @@ void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in)
   mtx_buffer.unlock( ); // 解锁
   sig_buffer.notify_all( ); // 唤醒阻塞的线程，当持有锁的线程释放锁时，这些线程中的一个会获得锁。而其余的会接着尝试获得锁
 }
-// 处理buffer中的数据，将两帧激光雷达点云数据时间内的IMU数据从缓存队列中取出，进行时间对齐，并保存到meas中
+// 处理buffer中的数据: 将两帧激光雷达点云数据时间内的IMU数据从缓存队列中取出，进行时间对齐，并保存到meas中
 bool sync_packages(MeasureGroup &meas)
 {
   if (lidar_buffer.empty( ) || imu_buffer.empty( )) // 如果缓存队列中没有数据，则返回false
@@ -451,7 +452,8 @@ bool sync_packages(MeasureGroup &meas)
     }
     // 该lidar测量起始的时间戳
     meas.lidar_beg_time = time_buffer.front( );
-    lidar_end_time      = meas.lidar_beg_time + meas.lidar->points.back( ).curvature / double(1000); // 此次雷达点云结束时刻
+    // 此次雷达点云结束时刻(估算的时刻)
+    lidar_end_time = meas.lidar_beg_time + meas.lidar->points.back( ).curvature / double(1000);
     // 成功提取到lidar测量的标志
     lidar_pushed = true;
   }
@@ -669,7 +671,7 @@ void publish_odometry(const ros::Publisher &pubOdomAftMapped)
   odomAftMapped.child_frame_id  = "body";
   odomAftMapped.header.stamp    = ros::Time( ).fromSec(lidar_end_time); // ros::Time().fromSec(lidar_end_time);
   set_posestamp(odomAftMapped.pose);
-  pubOdomAftMapped.publish(odomAftMapped);
+  pubOdomAftMapped.publish(odomAftMapped); // 发布里程计
   auto P = kf.get_P( );
   for (int i = 0; i < 6; i++)
   {
@@ -746,8 +748,8 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
 
     auto &points_near = Nearest_Points[i];
 
-    //???
-    if (ekfom_data.converge) // 如果收敛了
+    // 如果收敛了
+    if (ekfom_data.converge)
     {
       /** Find the closest surfaces in the map **/
       // 在已构造的地图上查找特征点的最近邻
@@ -768,15 +770,16 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
     pabcd; // 平面点信息
     point_selected_surf[i] = false; // 将该点设置为无效点，用来计算是否为平面点
 
-    // 拟合平面方程ax+by+cz+d=0并求解点到平面距离
-    if (esti_plane(pabcd, points_near, 0.1f)) // 计算平面法向量，common_lib.h中的函数
+    // 拟合平面方程ax+by+cz+d=0并求解点到平面距离, common_lib.h中的函数
+    if (esti_plane(pabcd, points_near, 0.1f)) // 0.1是找平面点的阈值
     {
       // 计算点到平面的距离
       float pd2 = pabcd(0) * point_world.x + pabcd(1) * point_world.y + pabcd(2) * point_world.z + pabcd(3);
       // Kernel function to reduce weight of residual(large residual-->small weight)
       float s = 1 - 0.9 * fabs(pd2) / sqrt(p_body.norm( ));
 
-      if (s > 0.9) // 如果weight大于阈值，则认为该点是有效点
+      // 如果weight大于阈值，则认为该点是有效匹配点，将该点加入残差。0.9为经验值
+      if (s > 0.9)
       {
         point_selected_surf[i]       = true; // 再次恢复为有效点
         normvec->points[i].x         = pabcd(0); // 将法向量存储至normvec
@@ -786,7 +789,7 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
         res_last[i]                  = abs(pd2); // 将残差存储至res_last
       }
     }
-  } // endfor: have calculated residual for every points
+  } // endfor: have calculated residual for every point
 
   effct_feat_num = 0; // 有效特征点数
 
@@ -838,15 +841,15 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
     // 1.在IESKF中，状态更新可以看成是一个优化问题，即对位姿状态先验 x_bk_bk+1 的偏差，以及基于观测模型引入的残差函数 f 的优化问题。
     // 2.LINS的特别之处在于，将LOAM的后端优化放在了IESKF的更新过程中实现，也就是用IESKF的迭代更新过程代替了LOAM的高斯牛顿法。
     V3D C(s.rot.conjugate( ) * norm_vec); // R^-1 * 法向量,  s.rot.conjugate（）是四元数共轭，即旋转求逆
-    V3D A(point_crossmat * C); // imu坐标系的点坐标的反对称点乘C
+    V3D A(point_crossmat * C); // imu坐标系的点坐标的反对称 点乘 C
     V3D B(point_be_crossmat * s.offset_R_L_I.conjugate( ) * C); // 带be的是激光雷达原始坐标系的点云，不带be的是imu坐标系的点坐标
     ekfom_data.h_x.block<1, 12>(i, 0) << norm_p.x, norm_p.y, norm_p.z, VEC_FROM_ARRAY(A), VEC_FROM_ARRAY(B), VEC_FROM_ARRAY(C);
 
     // 测量:到最近表面/角点的距离
-    ekfom_data.h(i) = -norm_p.intensity; // 点到面的距离
+    ekfom_data.h(i) = -norm_p.intensity; // 把点到面的距离(残差)保存到观测中
   } // endfor: have calculated H for every residual
   solve_time += omp_get_wtime( ) - solve_start_; // 返回从solve开始时候所经过的时间
-} // end: have calculated residual
+} // end: have calculated residuals
 
 // FAST_LIO2主函数
 int main(int argc, char **argv)
@@ -861,7 +864,7 @@ int main(int argc, char **argv)
   nh.param<bool>("publish/scan_publish_en", scan_pub_en, true);
   // 是否发布经过运动畸变校正注册到IMU坐标系的点云的topic，
   nh.param<bool>("publish/dense_publish_en", dense_pub_en, true);
-  // 是否发布经过运动畸变校正注册到IMU坐标系的点云的topic，需要该变量和上一个变量同时为true才发布
+  // 是否发布经过运动畸变校正配准到IMU坐标系的点云的topic，需要该变量和上一个变量同时为true才发布
   nh.param<bool>("publish/scan_bodyframe_pub_en", scan_body_pub_en, true);
   // 卡尔曼滤波的最大迭代次数
   nh.param<int>("max_iteration", NUM_MAX_ITERATIONS, 4);
@@ -871,7 +874,7 @@ int main(int argc, char **argv)
   nh.param<string>("common/lid_topic", lid_topic, "/livox/lidar");
   // IMU的topic名称
   nh.param<string>("common/imu_topic", imu_topic, "/livox/imu");
-  // ???是否需要时间同步，只有当外部未进行时间同步时设为true
+  // 是否需要时间同步，只有当外部未进行时间同步时设为true
   nh.param<bool>("common/time_sync_en", time_sync_en, false);
   // VoxelGrid降采样时的体素大小
   nh.param<double>("filter_size_corner", filter_size_corner_min, 0.5);
@@ -942,6 +945,7 @@ int main(int argc, char **argv)
   HALF_FOV_COS = cos((FOV_DEG) * 0.5 * PI_M / 180.0);
 
   _featsArray.reset(new PointCloudXYZI( ));
+
   // 将数组point_selected_surf内元素的值全部设为true，数组point_selected_surf用于选择平面点
   memset(point_selected_surf, true, sizeof(point_selected_surf));
   // 将数组res_last内元素的值全部设置为-1000.0f，数组res_last用于平面拟合中
@@ -968,9 +972,9 @@ int main(int argc, char **argv)
 
   double epsi[23] = {0.001};
   fill(epsi, epsi + 23, 0.001); // 从epsi填充到epsi+22 也就是全部数组置0.001
-  // 将函数地址传入kf对象中，用于接收特定于系统的模型及其差异
-  // 作为一个维数变化的特征矩阵进行测量。
-  // 通过一个函数（h_dyn_share_in）同时计算测量（z）、估计测量（h）、偏微分矩阵（h_x，h_v）和噪声协方差（R）。
+
+  // 作为一个维数变化的特征矩阵进行测量得到不同的误差函数，将函数地址传入kf对象中，用于接收特定于系统的模型及其差异
+  // 然后通过一个函数（h_dyn_share_in）同时计算测量（z）、估计测量（h）、偏微分矩阵（h_x，h_v）和噪声协方差（R）。
   kf.init_dyn_share(get_f, df_dx, df_dw, h_share_model, NUM_MAX_ITERATIONS, epsi);
 
   /*** debug record ***/
@@ -984,9 +988,13 @@ int main(int argc, char **argv)
   fout_out.open(DEBUG_FILE_DIR("mat_out.txt"), ios::out);
   fout_dbg.open(DEBUG_FILE_DIR("dbg.txt"), ios::out);
   if (fout_pre && fout_out)
+  {
     cout << "~~~~" << ROOT_DIR << " file opened" << endl;
+  }
   else
+  {
     cout << "~~~~" << ROOT_DIR << " doesn't exist" << endl;
+  }
 
   /*** ROS subscribe initialization ***/
   // ROS订阅器和发布器的定义和初始化
@@ -1052,8 +1060,7 @@ int main(int argc, char **argv)
       p_imu->Process(Measures, kf, feats_undistort);
       // 获取kf预测的全局状态（imu）
       state_point = kf.get_x( );
-      // 世界系下雷达坐标系的位置
-      // 下面式子的意义是W^p_L = W^p_I + W^R_I * I^t_L
+      // 世界系下雷达坐标系的位置: W^p_L = W^p_I + W^R_I * I^t_L
       pos_lid = state_point.pos + state_point.rot * state_point.offset_T_L_I;
 
       // 如果点云数据为空，则代表了激光雷达没有完成去畸变，此时还不能初始化成功

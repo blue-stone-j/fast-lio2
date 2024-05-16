@@ -64,6 +64,16 @@
     "typeindex": "cpp",
     "typeinfo": "cpp",
     "variant": "cpp",
-    "bit": "cpp"
+    "bit": "cpp",
+    "*.ipp": "cpp",
+    "future": "cpp",
+    "locale": "cpp",
+    "codecvt": "cpp",
+    "unordered_set": "cpp",
+    "hash_map": "cpp",
+    "hash_set": "cpp",
+    "shared_mutex": "cpp",
+    "valarray": "cpp",
+    "__nullptr": "cpp"
   }
 }
