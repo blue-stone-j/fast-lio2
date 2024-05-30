@@ -333,6 +333,7 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas,
 
   // 把最后一帧IMU测量也补上
   // 判断雷达结束时间是否晚于IMU，最后一个IMU时刻可能早于雷达末尾 也可能晚于雷达末尾
+  /*** calculated the pos and attitude prediction at the frame-end ***/
   double note = pcl_end_time > imu_end_time ? 1.0 : -1.0;
   dt          = note * (pcl_end_time - imu_end_time);
   kf_state.predict(dt, Q, in);
@@ -361,6 +362,10 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas,
     {
       dt = it_pcl->curvature / double(1000) - head->offset_time; // 点到IMU开始时刻的时间间隔
 
+      /* Transform to the 'end' frame, using only the rotation
+       * Note: Compensation direction is INVERSE of Frame's moving direction
+       * So if we want to compensate a point at timestamp-i to the frame-e
+       * P_compensate = R_imu_e ^ T * (R_i * P_i + T_ei) where T_ei is represented in global frame */
       /* 变换到“结束”帧，仅使用旋转; 补偿方向与帧的移动方向相反
          所以如果我们想补偿时间戳i到帧e的一个点: P_compensate = R_imu_e ^ T * (R_i * P_i + T_ei)  其中T_ei在全局框架中表示*/
       M3D R_i(R_imu * Exp(angvel_avr, dt)); // 点所在时刻的旋转

@@ -23,7 +23,7 @@ enum LID_TYPE
 // 枚举类型：表示特征点的类型
 enum Feature
 {
-  Nor, // 正常点
+  Nor, // 正常点 normal point
   Poss_Plane, // 可能的平面点
   Real_Plane, // 确定的平面点
   Edge_Jump, // 有跨越的边
@@ -45,7 +45,7 @@ enum E_jump
   Nr_nor, // 正常
   Nr_zero, // 0
   Nr_180, // 180
-  Nr_inf, // 无穷大 跳变较远???
+  Nr_inf, // 无穷大 跳变较远
   Nr_blind // 在盲区???
 };
 
@@ -136,10 +136,10 @@ class Preprocess
 
   // sensor_msgs::PointCloud2::ConstPtr pointcloud;
   PointCloudXYZI pl_full, pl_corn, pl_surf;  // 全部点、边缘点、平面点
-  PointCloudXYZI pl_buff[128]; // maximum 128 line lidar
+  PointCloudXYZI pl_buff[128]; // maximum 128 line lidar; an array, whose element is PointCloud
   vector<orgtype> typess[128]; // maximum 128 line lidar
   int lidar_type, point_filter_num, N_SCANS, SCAN_RATE; // 雷达类型、采样间隔、扫描线数、扫描频率
-  double blind; // 最小距离阈值(盲区)
+  double blind; // 最小距离阈值(盲区), 即过滤掉0～blind范围内的点云
   bool feature_enabled, given_offset_time;  // 是否提取特征、是否进行时间偏移
   ros::Publisher pub_full, pub_surf, pub_corn;  // 发布全部点、发布平面点、发布边缘点
     
@@ -164,13 +164,13 @@ class Preprocess
   bool edge_jump_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i, Surround nor_dir);
   
   // ???
-  int group_size;
+  int group_size; // we use this num point to caculate curvature
   double disA, disB, inf_bound;
   double limit_maxmid, limit_midmin, limit_maxmin;
   double p2l_ratio;
   double jump_up_limit, jump_down_limit;
   double cos160;
-  double edgea, edgeb;
+  double edgea, edgeb;// 点与点距离超过两倍则认为遮挡; 点与点距离超过0.1m则认为遮挡
   double smallp_intersect, smallp_ratio;
   double vx, vy, vz;
 };

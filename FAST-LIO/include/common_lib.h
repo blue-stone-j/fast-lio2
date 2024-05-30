@@ -24,8 +24,8 @@ using namespace Eigen;
 #define DIM_PROC_N (12) // Dimension of process noise (Let Dim(SO(3)) = 3)
 #define CUBE_LEN (6.0)
 #define LIDAR_SP_LEN (2)
-#define INIT_COV (1)
-#define NUM_MATCH_POINTS (5)
+#define INIT_COV (1) // we can change this value to adjust initial covariance
+#define NUM_MATCH_POINTS (5) // select this num points to fit plane or edge
 #define MAX_MEAS_DIM (10000)
 
 #define VEC_FROM_ARRAY(v) v[0], v[1], v[2]
@@ -36,7 +36,7 @@ using namespace Eigen;
 #define DEBUG_FILE_DIR(name) (string(string(ROOT_DIR) + "Log/" + name))
 
 typedef fast_lio::Pose6D Pose6D;
-typedef pcl::PointXYZINormal PointType;
+typedef pcl::PointXYZINormal PointType; // curvature and the normal of the surface are included
 typedef pcl::PointCloud<PointType> PointCloudXYZI;
 typedef vector<PointType, Eigen::aligned_allocator<PointType>> PointVector;
 typedef Vector3d V3D;
@@ -54,7 +54,8 @@ M3F Eye3f(M3F::Identity( ));
 V3D Zero3d(0, 0, 0);
 V3F Zero3f(0, 0, 0);
 
-struct MeasureGroup // Lidar data and imu data for the curent process
+// Lidar data and imu data for the curent process
+struct MeasureGroup
 {
   MeasureGroup( )
   {
@@ -65,6 +66,7 @@ struct MeasureGroup // Lidar data and imu data for the curent process
   PointCloudXYZI::Ptr lidar;
   deque<sensor_msgs::Imu::ConstPtr> imu;
 };
+
 // define state and mathematical operation of state
 struct StatesGroup
 {
@@ -103,6 +105,7 @@ struct StatesGroup
     return *this;
   };
 
+  // group + state, keep covariance; won't change left operand
   StatesGroup operator+(const Matrix<double, DIM_STATE, 1> &state_add)
   {
     StatesGroup a;
@@ -116,6 +119,7 @@ struct StatesGroup
     return a;
   };
 
+  // group + state; keep covariance; won't change left operand
   StatesGroup &operator+=(const Matrix<double, DIM_STATE, 1> &state_add)
   {
     this->rot_end = this->rot_end * Exp(state_add(0, 0), state_add(1, 0), state_add(2, 0));
@@ -127,6 +131,7 @@ struct StatesGroup
     return *this;
   };
 
+  // state = group - group; won't change left operand
   Matrix<double, DIM_STATE, 1> operator-(const StatesGroup &b)
   {
     Matrix<double, DIM_STATE, 1> a;
@@ -175,14 +180,14 @@ auto set_pose6d(const double t, const Matrix<T, 3, 1> &a, const Matrix<T, 3, 1> 
 {
   Pose6D rot_kp;
   rot_kp.offset_time = t;
-  for (int i = 0; i < 3; i++)
+  for (int i = 0; i < 3; i++) // 3d
   {
     rot_kp.acc[i] = a(i);
     rot_kp.gyr[i] = g(i);
     rot_kp.vel[i] = v(i);
     rot_kp.pos[i] = p(i);
     for (int j = 0; j < 3; j++)
-      rot_kp.rot[i * 3 + j] = R(i, j);
+      rot_kp.rot[i * 3 + j] = R(i, j); // rotation matrix
   }
   return move(rot_kp);
 }
@@ -212,13 +217,14 @@ bool esti_normvector(Matrix<T, 3, 1> &normvec, const PointVector &point, const T
 
   for (int j = 0; j < point_num; j++)
   {
+    // if residual is too large, it means not a valid plane fit
     if (fabs(normvec(0) * point[j].x + normvec(1) * point[j].y + normvec(2) * point[j].z + 1.0f) > threshold)
     {
       return false;
     }
   }
 
-  normvec.normalize( );
+  normvec.normalize( ); // direction of resdiual
   return true;
 }
 
@@ -228,6 +234,7 @@ float calc_dist(PointType p1, PointType p2)
   return d;
 }
 
+/* estimate plane */
 template <typename T>
 bool esti_plane(Matrix<T, 4, 1> &pca_result, const PointVector &point, const T &threshold) // 按照点集计算平面方程
 {

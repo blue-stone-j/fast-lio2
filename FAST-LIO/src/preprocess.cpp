@@ -12,9 +12,9 @@ Preprocess::Preprocess( ) :
   disA              = 0.01; // 点集合的距离阈值,判断是否为平面
   disB              = 0.1; // 点集合的距离阈值,判断是否为平面
   p2l_ratio         = 225; // 点到线的距离阈值，需要大于这个值才能判断组成面
-  limit_maxmid      = 6.25; // 中点到左侧的距离变化率范围
-  limit_midmin      = 6.25; // 中点到右侧的距离变化率范围
-  limit_maxmin      = 3.24; // 左侧到右侧的距离变化率范围
+  limit_maxmid      = 6.25; // 中点到左侧的距离变化率范围, max-between-distance / mid-between-distance
+  limit_midmin      = 6.25; // 中点到右侧的距离变化率范围, mid-between-distance / min-between-distance
+  limit_maxmin      = 3.24; // 左侧到右侧的距离变化率范围, max-between-distance / min-between-distance
   jump_up_limit     = 170.0;
   jump_down_limit   = 8.0;
   cos160            = 160.0;
@@ -91,7 +91,7 @@ void Preprocess::avia_handler(const livox_ros_driver::CustomMsg::ConstPtr &msg)
   for (int i = 0; i < N_SCANS; i++)
   {
     pl_buff[i].clear( );
-    pl_buff[i].reserve(plsize); // 每一个scan保存的点云数量
+    pl_buff[i].reserve(plsize); // 每一个scan/行保存的点云数量
   }
   uint valid_num = 0; // 有效的点云数
 
@@ -222,7 +222,7 @@ void Preprocess::oust64_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       added_pt.normal_y  = 0;
       added_pt.normal_z  = 0;
       double yaw_angle   = atan2(added_pt.y, added_pt.x) * 57.3;
-      // 这里好像没有用 因为atan2()返回在-pi到pi之间, just in case
+      // atan2() 返回在 -pi 到 pi 之间; but we still do something to make sure yaw in right range
       if (yaw_angle >= 180.0)
       {
         yaw_angle -= 360.0;
@@ -232,12 +232,12 @@ void Preprocess::oust64_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
         yaw_angle += 360.0;
       }
 
-      added_pt.curvature = pl_orig.points[i].t / 1e6;
+      added_pt.curvature = pl_orig.points[i].t / 1e6; //??? curvature unit: ms
       if (pl_orig.points[i].ring < N_SCANS)
       {
         pl_buff[pl_orig.points[i].ring].push_back(added_pt);
       }
-    }
+    } // endfor:???
 
     for (int j = 0; j < N_SCANS; j++)
     {
@@ -257,8 +257,8 @@ void Preprocess::oust64_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       }
       types[linesize].range = sqrt(pl[linesize].x * pl[linesize].x + pl[linesize].y * pl[linesize].y);
       give_feature(pl, types);
-    }
-  }
+    } // endfor:???
+  } // endif: feature_enabled
   else
   {
     double time_stamp = msg->header.stamp.toSec( );
@@ -301,7 +301,7 @@ void Preprocess::oust64_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
       pl_surf.points.push_back(added_pt);
     }
-  }
+  } // endelse: feature_enabled
   // pub_func(pl_surf, pub_full, msg->header.stamp);
   // pub_func(pl_surf, pub_corn, msg->header.stamp);
 }
@@ -334,7 +334,7 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
     given_offset_time = false;
     memset(is_first, true, sizeof(is_first));
     double yaw_first = atan2(pl_orig.points[0].y, pl_orig.points[0].x) * 57.29578;
-    double yaw_end   = yaw_first;
+    double yaw_end   = yaw_first; //???
     int layer_first  = pl_orig.points[0].ring;
     for (uint i = plsize - 1; i > 0; i--)
     {
@@ -404,7 +404,7 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       }
 
       pl_buff[layer].points.push_back(added_pt);
-    } // endfor:
+    } // endfor:???
 
     for (int j = 0; j < N_SCANS; j++)
     {
@@ -428,7 +428,7 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       }
       types[linesize].range = sqrt(pl[linesize].x * pl[linesize].x + pl[linesize].y * pl[linesize].y);
       give_feature(pl, types);
-    } // endfor:
+    } // endfor:???
   }
   else
   {
@@ -513,7 +513,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
     return;
   }
   uint head = 0;
-  // 不能在盲区 从这条线非盲区的点开始
+  // find first point out of blind; 不能在盲区 从这条线非盲区的点开始
   while (types[head].range < blind)
   {
     head++;
@@ -534,7 +534,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
   // 判断面点
   int plane_type;
 
-  // 开始判断平面
+  // 判断平面: 拿到8个点用于判断平面
   for (uint i = head; i < plsize2; i++)
   {
     if (types[i].range < blind) // 在盲区范围内的点不做处理
@@ -644,7 +644,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
 
   // 判断边缘点
   plsize2 = plsize > 3 ? plsize - 3 : 0; // 如果剩下的点数小于3则不判断边缘点，否则计算哪些点是边缘点
-  for (uint i = head + 3; i < plsize2; i++)
+  for (uint i = head + 3; i < plsize2; i++) // ??? why "3"
   {
     // 点不能在盲区 或者 点必须属于正常点和可能的平面点
     if (types[i].range < blind || types[i].ftype >= Real_Plane)
@@ -662,10 +662,10 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
 
     for (int j = 0; j < 2; j++)
     {
-      int m = -1;
+      int m = -1; // 索引为-1，表示前一个点
       if (j == 1)
       {
-        m = 1;
+        m = 1; // 索引为1，表示后一个点
       }
 
       // 若当前的前/后一个点在盲区内（4m)
@@ -682,13 +682,12 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
         continue;
       }
 
-      vecs[j] = Eigen::Vector3d(pl[i + m].x, pl[i + m].y, pl[i + m].z);
+      vecs[j] = Eigen::Vector3d(pl[i + m].x, pl[i + m].y, pl[i + m].z); // 前 / 后点
       vecs[j] = vecs[j] - vec_a; // 前/后点指向当前点的向量
       // 若雷达坐标系原点为O, 当前点为A, 前/后一点为M和N, 则下面OA点乘MA/（|OA|*|MA|）, 得到的是cos角OAM的大小
-
       types[i].intersect = vecs[Prev].dot(vecs[Next]) / vecs[Prev].norm( ) / vecs[Next].norm( ); // 角MAN的cos值
 
-      // 这种边缘点像是7字形这种的边缘？
+      // 这种边缘点像是7字形这种的边缘
       // ??? where angl e is calculated
       if (types[i].angle[j] < jump_up_limit) // cos(170)
       {
@@ -698,7 +697,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
       {
         types[i].edj[j] = Nr_zero; // M在OA上
       }
-    } // endfor:
+    } // endfor:???
 
     types[i].intersect = vecs[Prev].dot(vecs[Next]) / vecs[Prev].norm( ) / vecs[Next].norm( );
     // 前一个点是正常点 && 下一个点在激光线上 && 当前点与后一个点的距离大于0.0225m && 当前点与后一个点的距离大于当前点与前一个点距离的四倍
@@ -823,7 +822,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
         last_surface = -1;
       }
     }
-    else
+    else // if isn't plane
     {
       // 跳变较大的边缘边的点 位于平面边缘的点
       if (types[j].ftype == Edge_Jump || types[j].ftype == Edge_Plane)
@@ -871,16 +870,17 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
                             Eigen::Vector3d &curr_direct)
 {
   double group_dis = disA * types[i_cur].range + disB; // 0.01*sqrt(x^2+y^2)+0.1 基本上可以近似看成是0.1 100m的时候才到0.2
-  group_dis        = group_dis * group_dis;
+  group_dis        = group_dis * group_dis; // threshold to define whether is surface
   // i_nex = i_cur;
 
   double two_dis;
-  vector<double> disarr; // 前后点距离数组
-  disarr.reserve(20);
+  vector<double> disarr; // distance: 前后点距离数组
+  disarr.reserve(20); // capacity, which should better to be more than group_size
 
   // 距离小 点与点之间较近 先取够8个点
   for (i_nex = i_cur; i_nex < i_cur + group_size; i_nex++)
   {
+    // if a point will be used to calculate curvature but it's in blind, this point won't be a feature point
     if (types[i_nex].range < blind)
     {
       curr_direct.setZero( ); // 距离雷达原点太小了，将方向向量设置为零向量
@@ -906,7 +906,7 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
     vx      = pl[i_nex].x - pl[i_cur].x;
     vy      = pl[i_nex].y - pl[i_cur].y;
     vz      = pl[i_nex].z - pl[i_cur].z;
-    two_dis = vx * vx + vy * vy + vz * vz;
+    two_dis = vx * vx + vy * vy + vz * vz; // square distance betweent two points
     if (two_dis >= group_dis) // 距离i_cur点太远了就直接break
     {
       break;
@@ -915,8 +915,8 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
     i_nex++; // i_nex点加一
   }
 
-  double leng_wid = 0;
-  double v1[3], v2[3];
+  double leng_wid = 0; // ???
+  double v1[3], v2[3]; // ???
   for (uint j = i_cur + 1; j < i_nex; j++)
   {
     if ((j >= pl.size( )) || (i_cur >= pl.size( )))
@@ -942,20 +942,20 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
   }
   //??? note that input points lie on one scan, if these points are on one plane, height must be small
 
-  //|AC|*|AC|/(|AC|*|AC|*h*h)<225, 也就是h>1/15 B点到AC的距离要大于0.06667m, 太近了不好拟合一个平面
+  // |AC|*|AC|/(|AC|*|AC|*h*h)<225, 也就是h>1/15 B点到AC的距离要大于0.06667m, 太近了不好拟合一个平面
   if ((two_dis * two_dis / leng_wid) < p2l_ratio)
   {
     curr_direct.setZero( ); // 太近了，方向向量直接设置为0
     return 0;
   }
 
-  // 把两点之间的距离 按从大到小排个顺序
+  // sort in descent order; 把两点之间的距离 按从大到小排个顺序
   uint disarrsize = disarr.size( );
   for (uint j = 0; j < disarrsize - 1; j++)
   {
     for (uint k = j + 1; k < disarrsize; k++)
     {
-      if (disarr[j] < disarr[k])
+      if (disarr[j] < disarr[k]) // exchange
       {
         leng_wid  = disarr[j];
         disarr[j] = disarr[k];
@@ -964,7 +964,7 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
     }
   }
   // 这里可能最近的点还是太近了
-  if (disarr[disarr.size( ) - 2] < 1e-16)
+  if (disarr[disarr.size( ) - 2] < 1e-16) // we have occuluded last point, so there is "-2"
   {
     curr_direct.setZero( );
     return 0;
@@ -1030,9 +1030,9 @@ bool Preprocess::edge_jump_judge(const PointCloudXYZI &pl, vector<orgtype> &type
   d1 = sqrt(d1);
   d2 = sqrt(d2);
 
+  // 假如间距太大 可能是被遮挡，就不把它当作边缘点
   if (d1 > edgea * d2 || (d1 - d2) > edgeb)
   {
-    // 假如间距太大 可能是被遮挡，就不把它当作边缘点
     return false;
   }
 

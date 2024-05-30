@@ -91,7 +91,7 @@ const float MOV_THRESHOLD = 1.5f; // 设置的当前雷达系中心到各个地�
 mutex mtx_buffer; // 互斥锁
 condition_variable sig_buffer; //??? 条件变量
 
-string root_dir = ROOT_DIR; // 设置根目录
+string root_dir = ROOT_DIR; // 设置根目录, 在cmakelists中设置的, 会在编译时给ROOT_DIR赋值
 string map_file_path, lid_topic, imu_topic; // 设置地图文件路径，雷达topic，imu topic
 
 // 设置残差平均值，残差总和
@@ -191,6 +191,7 @@ inline void dump_lio_state_to_log(FILE *fp)
 }
 
 // 把点从body系转到world系，通过ikfom的位置和姿态
+// (指针指向的内存地址 and 该地址指向的内存的内容 不可变, 指针指向的内存地址不可变，但可以随意改变该地址指向的内存的内容)
 void pointBodyToWorld_ikfom(PointType const *const pi, PointType *const po, state_ikfom &s)
 {
   V3D p_body(pi->x, pi->y, pi->z);
@@ -328,7 +329,7 @@ void lasermap_fov_segment( )
   LocalMap_Points = New_LocalMap_Points;
 
   points_cache_collect( );
-  double delete_begin = omp_get_wtime( );
+  double delete_begin = omp_get_wtime( ); // get time moment
   // 使用Boxs删除指定盒内的点
   if (cub_needrm.size( ) > 0)
   {
@@ -337,7 +338,7 @@ void lasermap_fov_segment( )
   kdtree_delete_time = omp_get_wtime( ) - delete_begin;
 }
 
-// 除了AVIA类型之外的雷达点云回调函数，将数据引入到buffer当中
+// standard cloud callback function: 除了AVIA类型之外的雷达点云回调函数，将数据引入到buffer当中
 void standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg)
 {
   mtx_buffer.lock( ); // 加锁
@@ -362,7 +363,9 @@ void standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg)
 double timediff_lidar_wrt_imu = 0.0; // 雷达时间与imu时间差
 bool timediff_set_flg         = false; // 时间同步flag，false表示未进行时间同步，true表示已经进行过时间同步
 
-// 订阅器sub_pcl的回调函数：接收Livox激光雷达的点云数据，对点云数据进行预处理（特征提取、降采样、滤波），并将处理后的数据保存到激光雷达数据队列中
+/* 订阅器sub_pcl的回调函数：
+   接收Livox激光雷达的点云数据，对点云数据进行预处理（特征提取、降采样、滤波），并将处理后的数据保存到激光雷达数据队列中
+   */
 void livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &msg)
 {
   // 互斥锁
@@ -407,7 +410,7 @@ void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in)
   publish_count++;
   // cout<<"IMU got at: "<<msg_in->header.stamp.toSec()<<endl;
   sensor_msgs::Imu::Ptr msg(new sensor_msgs::Imu(*msg_in));
-  // 将IMU和激光雷达点云的时间戳对齐
+  // time diff of lidar with respect to imu; 将IMU和激光雷达点云的时间戳对齐
   if (abs(timediff_lidar_wrt_imu) > 0.1 && time_sync_en) // 时间同步校准
   {
     //??? 直接就强行改了时间戳
@@ -427,11 +430,18 @@ void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in)
   // 将当前的IMU数据保存到IMU数据缓存队列中
   last_timestamp_imu = timestamp;
 
-  imu_buffer.push_back(msg);
+  imu_buffer.push_back(msg); // 将当前的 IMU 数据保存到 IMU 数据缓存队列中
   mtx_buffer.unlock( ); // 解锁
   sig_buffer.notify_all( ); // 唤醒阻塞的线程，当持有锁的线程释放锁时，这些线程中的一个会获得锁。而其余的会接着尝试获得锁
 }
-// 处理buffer中的数据: 将两帧激光雷达点云数据时间内的IMU数据从缓存队列中取出，进行时间对齐，并保存到meas中
+
+/**
+ * @brief 将激光雷达点云数据和 IMU 数据从缓存队列中取出，进行时间对齐，并保存到 meas 中
+ *
+ * @param meas  用于保存当前正在处理的激光雷达数据和IMU数据
+ * @return true : succeed to sync
+ * @return false: fail to sync
+ */
 bool sync_packages(MeasureGroup &meas)
 {
   if (lidar_buffer.empty( ) || imu_buffer.empty( )) // 如果缓存队列中没有数据，则返回false
@@ -444,8 +454,8 @@ bool sync_packages(MeasureGroup &meas)
   {
     // 从激光雷达点云缓存队列中取出点云数据，放到meas中
     meas.lidar = lidar_buffer.front( );
-    // 如果该lidar没有点云，则返回false
-    if (meas.lidar->points.size( ) <= 1)
+    // 计算该次雷达扫描的结束时间
+    if (meas.lidar->points.size( ) <= 1) // 如果该lidar没有点云，则返回false
     {
       lidar_buffer.pop_front( );
       return false;
@@ -464,6 +474,7 @@ bool sync_packages(MeasureGroup &meas)
     return false;
   }
 
+  /*** push imu data, and pop from imu buffer ***/
   // 压入imu数据，并从imu缓冲区弹出
   double imu_time = imu_buffer.front( )->header.stamp.toSec( );
   meas.imu.clear( );
@@ -486,10 +497,10 @@ bool sync_packages(MeasureGroup &meas)
   return true;
 }
 
-int process_increments = 0;
 // 地图的增量更新，主要完成对ikd-tree的地图建立
+int process_increments = 0;
 void map_incremental( )
-{ //???
+{
   PointVector PointToAdd; // 需要加入到ikd-tree中的点云
   PointVector PointNoNeedDownsample; // 加入ikd-tree时，不需要降采样的点云
   PointToAdd.reserve(feats_down_size); // 构建的地图点
@@ -555,7 +566,7 @@ void map_incremental( )
 }
 
 PointCloudXYZI::Ptr pcl_wait_pub(new PointCloudXYZI(500000, 1)); // 创建一个点云用于存储等待发布的点云
-PointCloudXYZI::Ptr pcl_wait_save(new PointCloudXYZI( )); // 创建一个点云用于存储等待保存的点云
+PointCloudXYZI::Ptr pcl_wait_save(new PointCloudXYZI( )); // point cloud that will be saved in map
 void publish_frame_world(const ros::Publisher &pubLaserCloudFull)
 {
   if (scan_pub_en) // 设置是否发布激光雷达数据，是否发布稠密数据，是否发布激光雷达数据的身体数据
@@ -664,7 +675,7 @@ void set_posestamp(T &out)
   out.pose.orientation.w = geoQuat.w;
 }
 
-// 发布里程计
+// 发布里程计和tf变换
 void publish_odometry(const ros::Publisher &pubOdomAftMapped)
 {
   odomAftMapped.header.frame_id = "camera_init";
@@ -767,11 +778,12 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
     }
 
     VF(4)
-    pabcd; // 平面点信息
+    pabcd; // 平面点信息: #define VF(a) Matrix<float, (a), 1>   ooo
     point_selected_surf[i] = false; // 将该点设置为无效点，用来计算是否为平面点
 
     // 拟合平面方程ax+by+cz+d=0并求解点到平面距离, common_lib.h中的函数
-    if (esti_plane(pabcd, points_near, 0.1f)) // 0.1是找平面点的阈值
+    // (pca to get normal, near points that may construct a plane, 找平面点的阈值)
+    if (esti_plane(pabcd, points_near, 0.1f))
     {
       // 计算点到平面的距离
       float pd2 = pabcd(0) * point_world.x + pabcd(1) * point_world.y + pabcd(2) * point_world.z + pabcd(3);
@@ -845,7 +857,7 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
     V3D B(point_be_crossmat * s.offset_R_L_I.conjugate( ) * C); // 带be的是激光雷达原始坐标系的点云，不带be的是imu坐标系的点坐标
     ekfom_data.h_x.block<1, 12>(i, 0) << norm_p.x, norm_p.y, norm_p.z, VEC_FROM_ARRAY(A), VEC_FROM_ARRAY(B), VEC_FROM_ARRAY(C);
 
-    // 测量:到最近表面/角点的距离
+    // 测量: 到最近表面/角点的距离
     ekfom_data.h(i) = -norm_p.intensity; // 把点到面的距离(残差)保存到观测中
   } // endfor: have calculated H for every residual
   solve_time += omp_get_wtime( ) - solve_start_; // 返回从solve开始时候所经过的时间
@@ -1069,7 +1081,7 @@ int main(int argc, char **argv)
         first_lidar_time        = Measures.lidar_beg_time; // 记录第一次扫描的时间
         p_imu->first_lidar_time = first_lidar_time; // 将第一帧的时间传给imu作为当前帧的第一个点云时间
         // cout<<"FAST-LIO not ready"<<endl;
-        continue;
+        continue; // 无点则跳过 this frame
       }
 
       // 判断是否初始化完成，需要满足第一次扫描的时间和第一个点云时间的差值大于INIT_TIME
@@ -1202,7 +1214,7 @@ int main(int argc, char **argv)
 
     status = ros::ok( );
     rate.sleep( );
-  }
+  } // end while
 
   /**************** save map ****************/
   /* 1. make sure you have enough memories

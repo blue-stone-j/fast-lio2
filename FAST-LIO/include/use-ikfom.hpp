@@ -11,7 +11,9 @@ typedef MTK::vect<2, double> vect2;
 
 // 定义的ieskf状态空间; R_L_I: rotation between lidar and inertia
 MTK_BUILD_MANIFOLD(state_ikfom,
-                   ((vect3, pos))((SO3, rot))((SO3, offset_R_L_I))((vect3, offset_T_L_I))((vect3, vel))((vect3, bg))((vect3, ba)) // S2流形,grav为负值
+                   ((vect3, pos))((SO3, rot))((SO3, offset_R_L_I)) // rotation from lidar to imu
+                   ((vect3, offset_T_L_I)) // translation from lidar to imu
+                   ((vect3, vel))((vect3, bg))((vect3, ba)) // S2流形,grav为负值
                    ((S2, grav)));
 
 // 定义的输入状态
@@ -55,6 +57,7 @@ Eigen::Matrix<double, 24, 1> get_f(state_ikfom &s, const input_ikfom &in)
   }
   return res;
 }
+
 // 对应fast_lio2论文公式(7): state transition
 Eigen::Matrix<double, 24, 23> df_dx(state_ikfom &s, const input_ikfom &in)
 {
@@ -96,7 +99,8 @@ Eigen::Matrix<double, 24, 12> df_dw(state_ikfom &s, const input_ikfom &in)
   return cov;
 }
 
-vect3 SO3ToEuler(const SO3 &orient) // 将SO3转为Euler角
+// 将SO3转为Euler角
+vect3 SO3ToEuler(const SO3 &orient)
 {
   Eigen::Matrix<double, 3, 1> _ang;
   Eigen::Vector4d q_data = orient.coeffs( ).transpose( ); // 将SO3转为4*1的矩阵
@@ -109,7 +113,7 @@ vect3 SO3ToEuler(const SO3 &orient) // 将SO3转为Euler角
   double test = q_data[3] * q_data[1] - q_data[2] * q_data[0];
 
   if (test > 0.49999 * unit)
-  { // 在北极点
+  { // singularity at north pole
 
     _ang << 2 * std::atan2(q_data[0], q_data[3]), M_PI / 2, 0;
     double temp[3] = {_ang[0] * 57.3, _ang[1] * 57.3, _ang[2] * 57.3};

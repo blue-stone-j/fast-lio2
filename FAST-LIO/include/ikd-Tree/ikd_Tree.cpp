@@ -4,6 +4,7 @@
 Description: ikd-Tree: an incremental k-d tree for robotic applications
 Author: Yixi Cai
 email: yixicai@connect.hku.hk
+github: https://github.com/hku-mars/ikd-Tree.git
 */
 
 KD_TREE::KD_TREE(float delete_param, float balance_param, float box_length)

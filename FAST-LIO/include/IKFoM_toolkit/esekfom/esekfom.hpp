@@ -178,7 +178,7 @@ class esekf
     x_.build_vect_state( );
   }
 
-  // receive system-specific models and their differentions.
+  // receive system-specific models and their differentions
   // for measurement as an Eigen matrix whose dimention is changing.
   void init_dyn(processModel f_in, processMatrix1 f_x_in, processMatrix2 f_w_in, measurementModel_dyn h_in, measurementMatrix1_dyn h_x_in, measurementMatrix2_dyn h_v_in, int maximum_iteration, scalar_type limit_vector[n])
   {
@@ -200,7 +200,7 @@ class esekf
     x_.build_vect_state( );
   }
 
-  // receive system-specific models and their differentions.
+  // receive system-specific models and their differentions
   // for measurement as a dynamic manifold whose dimension or type is changing.
   void init_dyn_runtime(processModel f_in, processMatrix1 f_x_in, processMatrix2 f_w_in, measurementMatrix1_dyn h_x_in,
                         measurementMatrix2_dyn h_v_in, int maximum_iteration, scalar_type limit_vector[n])
@@ -288,15 +288,17 @@ class esekf
     x_.build_vect_state( );
   }
 
-  // 迭代误差状态EKF传播；这里的参数均从use-ikfom中传入
+  //  iterated error state EKF propogation: 迭代误差状态EKF传播；这里的参数均从use-ikfom中传入
   void predict(double &dt, processnoisecovariance &Q, const input &i_in)
   {
+    // n = state::DOF, m = state::DIM, l = measurement::DOF
+
     // f函数对应use-ikfom.hpp中的 get_f函数，对应fast_lio2论文公式(2)
     flatted_state f_ = f(x_, i_in); // m*1
     // 对应use-ikfom.hpp中的 df_dx函数, fast_lio2论文公式(7)
     cov_ f_x_ = f_x(x_, i_in); // m*n
     cov f_x_final; // n*n
-    // 对应use-ikfom.hpp中的 df_dw函数, 对应fast_lio2论文公式(7)
+    // 对应use-ikfom.hpp中的 df_dw 函数, 对应fast_lio2论文公式(7)
     Matrix<scalar_type, m, process_noise_dof> f_w_ = f_w(x_, i_in);
     Matrix<scalar_type, n, process_noise_dof> f_w_final;
     state x_before = x_; // 保存x_的值，用于后面的更新
@@ -1780,6 +1782,7 @@ class esekf
     }
   }
 
+  // iterated error state EKF update modified for one specific system.
   // 迭代误差状态EKF更新修改为一个特定的系统(LASER_POINT_COV, )
   void update_iterated_dyn_share_modified(double R, double &solve_time)
   {
