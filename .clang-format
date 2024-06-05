@@ -133,6 +133,7 @@ FixNamespaceComments: true
 # 缩进case标签
 IndentCaseLabels: true
 
+# AfterHash BeforeHash InheritParentIndent
 IndentPPDirectives: None
 
 # 缩进宽度
