@@ -262,8 +262,8 @@ struct matrix : public Eigen::Matrix<_scalar, M, N, _Options>
   enum // dimension of freedom, type???, dimension of ???
   {
     DOF = M * N,
-    TYP = 4,
-    DIM = 0
+    DIM = 0,
+    TYP = 4
   };
   typedef _scalar scalar;
 
@@ -349,8 +349,8 @@ struct Scalar
   enum
   {
     DOF = 1,
-    TYP = 5,
-    DIM = 0
+    DIM = 0,
+    TYP = 5
   };
   typedef _scalar scalar;
 
@@ -410,8 +410,8 @@ struct PositiveScalar
   enum
   {
     DOF = 1,
-    TYP = 6,
-    DIM = 0
+    DIM = 0,
+    TYP = 6
   };
   typedef _scalar scalar;
 
@@ -478,8 +478,8 @@ struct Complex : public std::complex<_scalar>
   enum
   {
     DOF = 2,
-    TYP = 7,
-    DIM = 0
+    DIM = 0,
+    TYP = 7
   };
   typedef _scalar scalar;
 

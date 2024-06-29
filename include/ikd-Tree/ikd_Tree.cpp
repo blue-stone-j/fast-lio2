@@ -334,11 +334,11 @@ void KD_TREE::multi_thread_rebuild( )
           pthread_mutex_unlock(&rebuild_logger_mutex_lock);
           pthread_mutex_unlock(&working_flag_mutex);
           // 在新的树中操作
-          run_operation(&new_root_node, Operation); // ??? node have been process when build, when again
+          run_operation(&new_root_node, Operation);
           tmp_counter++;
           if (tmp_counter % 10 == 0)
           {
-            usleep(1); //???
+            usleep(1);
           }
           pthread_mutex_lock(&working_flag_mutex);
           pthread_mutex_lock(&rebuild_logger_mutex_lock);
@@ -1995,7 +1995,6 @@ float KD_TREE::calc_dist(PointType a, PointType b)
 }
 
 // 首先获取node构成的树的范围，就是一个Box。然后逐个面判断point是否在box外，如果在Box外，则计算离point的面的距离之“平方”和
-// ???有个疑惑，这样计算的结果真的是点到Box的距离吗
 float KD_TREE::calc_box_dist(KD_TREE_NODE *node, PointType point)
 {
   if (node == nullptr)

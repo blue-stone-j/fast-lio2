@@ -128,7 +128,7 @@ class esekf
   typedef SparseMatrix<scalar_type> spMt;
   typedef Matrix<scalar_type, n, 1> vectorized_state;
   typedef Matrix<scalar_type, m, 1> flatted_state;
-  typedef flatted_state processModel(state &, const input &); //??? 声明一个函数指针
+  typedef flatted_state processModel(state &, const input &); // 声明一个函数指针
   typedef Eigen::Matrix<scalar_type, m, n> processMatrix1(state &, const input &);
   typedef Eigen::Matrix<scalar_type, m, process_noise_dof> processMatrix2(state &, const input &);
   typedef Eigen::Matrix<scalar_type, process_noise_dof, process_noise_dof> processnoisecovariance;
@@ -2171,19 +2171,19 @@ class esekf
   cov F_x2 = cov::Identity( );
   cov L_   = cov::Identity( );
 
-  processModel *f; //???
+  processModel *f;
   processMatrix1 *f_x;
   processMatrix2 *f_w;
 
-  measurementModel *h; //???
+  measurementModel *h;
   measurementMatrix1 *h_x;
   measurementMatrix2 *h_v;
 
-  measurementModel_dyn *h_dyn; //???
+  measurementModel_dyn *h_dyn;
   measurementMatrix1_dyn *h_x_dyn;
   measurementMatrix2_dyn *h_v_dyn;
 
-  measurementModel_share *h_share; //???
+  measurementModel_share *h_share;
   measurementModel_dyn_share *h_dyn_share; // dynamic model, which will change during running
 
   int maximum_iter = 0;

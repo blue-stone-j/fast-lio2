@@ -27,10 +27,10 @@ struct KD_TREE_NODE
   // 该节点对应的点坐标
   PointType point;
   // 划分轴
-  int division_axis; //???
+  int division_axis;
   int TreeSize                  = 1;
   int invalid_point_num         = 0;
-  int down_del_num              = 0; //???
+  int down_del_num              = 0; // num of deleted nodes during downsample
   bool point_deleted            = false;
   bool tree_deleted             = false;
   bool point_downsample_deleted = false;
@@ -154,7 +154,7 @@ class KD_TREE
   pthread_mutex_t termination_flag_mutex_lock, rebuild_ptr_mutex_lock, working_flag_mutex, search_flag_mutex; // 用于多线程重建树的互斥锁
   pthread_mutex_t rebuild_logger_mutex_lock, points_deleted_rebuild_mutex_lock; // 用于多线程重建树的互斥锁
   // queue<Operation_Logger_Type> Rebuild_Logger;
-  MANUAL_Q Rebuild_Logger; //??? 用于多线程重建树的队列
+  MANUAL_Q Rebuild_Logger; // 用于多线程重建树的队列. 如果需要重建树的话，会先将树展平放到Rebuild_Logger里
   PointVector Rebuild_PCL_Storage; // 用于多线程重建树的点云存储
   KD_TREE_NODE **Rebuild_Ptr = nullptr; // 用于多线程重建树的树指针
   int search_mutex_counter   = 0; // 用于多线程重建树的互斥计数器
@@ -185,7 +185,7 @@ class KD_TREE
   void Search(KD_TREE_NODE *root, int k_nearest, PointType point, MANUAL_HEAP &q, double max_dist); // priority_queue<PointType_CMP>
   void Search_by_range(KD_TREE_NODE *root, BoxPointType boxpoint, PointVector &Storage);
   bool Criterion_Check(KD_TREE_NODE *root);
-  void Push_Down(KD_TREE_NODE *root); //???
+  void Push_Down(KD_TREE_NODE *root);
   void Update(KD_TREE_NODE *root); // update father info by left and right son
   void delete_tree_nodes(KD_TREE_NODE **root);
   void downsample(KD_TREE_NODE **root);
@@ -204,7 +204,7 @@ class KD_TREE
   void set_downsample_param(float box_length);
   void InitializeKDTree(float delete_param = 0.5, float balance_param = 0.7, float box_length = 0.2);
   int size( );
-  int validnum( ); //???
+  int validnum( ); // num of valid points
   void root_alpha(float &alpha_bal, float &alpha_del); //???
   void Build(PointVector point_cloud);
   void Nearest_Search(PointType point, int k_nearest, PointVector &Nearest_Points, vector<float> &Point_Distance, double max_dist = INFINITY);

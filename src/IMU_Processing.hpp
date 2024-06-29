@@ -75,8 +75,8 @@ class ImuProcess
   vector<M3D> v_rot_pcl_; // 未使用
   M3D Lidar_R_wrt_IMU; // lidar到IMU的旋转外参
   V3D Lidar_T_wrt_IMU; // lidar到IMU的位置外参
-  V3D mean_acc; // ???加速度均值,用于计算方差
-  V3D mean_gyr; // ???角速度均值，用于计算方差
+  V3D mean_acc; // 加速度均值,用于计算方差
+  V3D mean_gyr; // 角速度均值，用于计算方差
   V3D angvel_last; // 上一帧角速度
   V3D acc_s_last; // 上一帧加速度
   double start_timestamp_; // 开始时间戳

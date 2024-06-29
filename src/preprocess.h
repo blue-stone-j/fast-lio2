@@ -28,7 +28,7 @@ enum Feature
   Real_Plane, // 确定的平面点
   Edge_Jump, // 有跨越的边
   Edge_Plane, // 边上的平面点
-  Wire, // 线段 这个也许当了无效点？也就是空间中的小线段???
+  Wire, // 线段 这个也许当了无效点？也就是空间中的小线段
   ZeroPoint // 无效点 程序中未使用
 };
 
@@ -46,7 +46,7 @@ enum E_jump
   Nr_zero, // 0
   Nr_180, // 180
   Nr_inf, // 无穷大 跳变较远
-  Nr_blind // 在盲区???
+  Nr_blind // 在盲区(too close)
 };
 
 // orgtype类：用于存储激光雷达点的一些其他属性
@@ -152,18 +152,18 @@ class Preprocess
   // 用于对velodyne激光雷达数据进行处理
   void velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg); 
 
-  //???
+  // set points as edge or plane
   void give_feature(PointCloudXYZI &pl, vector<orgtype> &types);
-  //???
+  // 发布topic指令
   void pub_func(PointCloudXYZI &pl, const ros::Time &ct);
   // judge wether this is a plane. curr_direct is direction that plane expands
   int  plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i, uint &i_nex, Eigen::Vector3d &curr_direct);
-  //???
+  // undefined function
   bool small_plane(const PointCloudXYZI &pl, vector<orgtype> &types, uint i_cur, uint &i_nex, Eigen::Vector3d &curr_direct);  // 没有用到
-  //???
+  // 边缘判断
   bool edge_jump_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i, Surround nor_dir);
   
-  // ???
+
   int group_size; // we use this num point to caculate curvature
   double disA, disB, inf_bound;
   double limit_maxmid, limit_midmin, limit_maxmin;

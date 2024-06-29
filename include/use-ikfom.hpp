@@ -9,6 +9,8 @@ typedef MTK::S2<double, 98090, 10000, 1> S2; // S2 流形
 typedef MTK::vect<1, double> vect1;
 typedef MTK::vect<2, double> vect2;
 
+// macro definition: https://juejin.cn/post/7152052712018804767
+
 // 定义的ieskf状态空间; R_L_I: rotation between lidar and inertia
 MTK_BUILD_MANIFOLD(state_ikfom,
                    ((vect3, pos))((SO3, rot))((SO3, offset_R_L_I)) // rotation from lidar to imu

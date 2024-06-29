@@ -257,7 +257,7 @@ void Preprocess::oust64_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       }
       types[linesize].range = sqrt(pl[linesize].x * pl[linesize].x + pl[linesize].y * pl[linesize].y);
       give_feature(pl, types);
-    } // endfor:???
+    } // endfor: give type for every point
   } // endif: feature_enabled
   else
   {
@@ -334,7 +334,7 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
     given_offset_time = false;
     memset(is_first, true, sizeof(is_first));
     double yaw_first = atan2(pl_orig.points[0].y, pl_orig.points[0].x) * 57.29578;
-    double yaw_end   = yaw_first; //???
+    double yaw_end   = yaw_first; // for a whole, start angle is same with end angle
     int layer_first  = pl_orig.points[0].ring;
     for (uint i = plsize - 1; i > 0; i--)
     {
@@ -644,7 +644,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
 
   // 判断边缘点
   plsize2 = plsize > 3 ? plsize - 3 : 0; // 如果剩下的点数小于3则不判断边缘点，否则计算哪些点是边缘点
-  for (uint i = head + 3; i < plsize2; i++) // ??? why "3"
+  for (uint i = head + 3; i < plsize2; i++)
   {
     // 点不能在盲区 或者 点必须属于正常点和可能的平面点
     if (types[i].range < blind || types[i].ftype >= Real_Plane)
@@ -688,7 +688,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
       types[i].intersect = vecs[Prev].dot(vecs[Next]) / vecs[Prev].norm( ) / vecs[Next].norm( ); // 角MAN的cos值
 
       // 这种边缘点像是7字形这种的边缘
-      // ??? where angl e is calculated
+      // ??? where angle is calculated
       if (types[i].angle[j] < jump_up_limit) // cos(170)
       {
         types[i].edj[j] = Nr_180; // M在OA延长线上
@@ -821,7 +821,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
 
         last_surface = -1;
       }
-    }
+    } // endif: is plane
     else // if isn't plane
     {
       // 跳变较大的边缘边的点 位于平面边缘的点
@@ -850,8 +850,8 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
         pl_surf.push_back(ap);
       }
       last_surface = -1;
-    }
-  } // endfor:存储平面点
+    } // endelse: isn't plane
+  } // endfor: 存储平面点
 }
 
 // 发布topic指令，该函数暂时没用到
@@ -915,8 +915,8 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
     i_nex++; // i_nex点加一
   }
 
-  double leng_wid = 0; // ???
-  double v1[3], v2[3]; // ???
+  double leng_wid = 0; // temporary varible: length/width
+  double v1[3], v2[3]; // two sides
   for (uint j = i_cur + 1; j < i_nex; j++)
   {
     if ((j >= pl.size( )) || (i_cur >= pl.size( )))

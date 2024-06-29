@@ -103,8 +103,8 @@ struct S2
   enum
   {
     DOF = 2,
-    TYP = 1,
-    DIM = 3
+    DIM = 3,
+    TYP = 1
   };
 
   // private:

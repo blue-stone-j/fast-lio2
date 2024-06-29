@@ -117,7 +117,7 @@ bool scan_pub_en = false, dense_pub_en = false, scan_body_pub_en = false;
 
 vector<vector<int>> pointSearchInd_surf; // 每个点的索引,暂时没用到
 vector<BoxPointType> cub_needrm; // ikd-tree中，地图需要移除的包围盒序列
-vector<PointVector> Nearest_Points; //??? 每个点的最近点序列
+vector<PointVector> Nearest_Points; // 每个点的最近点序列, [i]第i个点的最近点序列
 vector<double> extrinT(3, 0.0); // 雷达相对于IMU的外参T
 vector<double> extrinR(9, 0.0); // 雷达相对于IMU的外参R
 deque<double> time_buffer; // 激光雷达数据时间戳缓存队列
@@ -389,8 +389,8 @@ void livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &msg)
   // time_sync_en为true时，当imu时间戳和雷达时间戳相差大于1s时，进行时间同步
   if (time_sync_en && !timediff_set_flg && abs(last_timestamp_lidar - last_timestamp_imu) > 1 && !imu_buffer.empty( ))
   {
-    timediff_set_flg       = true; // 标记已经进行时间同步 ??? but where is sync process?
-    timediff_lidar_wrt_imu = last_timestamp_lidar + 0.1 - last_timestamp_imu;
+    timediff_set_flg       = true; // 标记已经进行时间同步
+    timediff_lidar_wrt_imu = last_timestamp_lidar + 0.1 - last_timestamp_imu; // force sync
     printf("Self sync IMU and LiDAR, time diff is %.10lf \n", timediff_lidar_wrt_imu);
   }
   // 用pcl点云格式保存接收到的激光雷达数据
